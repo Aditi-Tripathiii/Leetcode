@@ -3,8 +3,13 @@
 ## What this does
 Every 15 minutes, GitHub's own servers (not your machine) check your recent
 LeetCode submissions. Any newly Accepted one gets written to:
-- `quest/<problem-slug>/README.md` — problem statement + difficulty + link
-- `sol/<problem-slug>/solution.<ext>` — your code
+- `<topic>/<problem-slug>/question.md` — problem statement, difficulty, link
+- `<topic>/<problem-slug>/solution.md` — empty template, yours to fill in.
+  Once it exists, the sync never touches it again (safe to write your notes).
+- `<topic>/<problem-slug>/code.<ext>` — your accepted code
+
+`<topic>` is the first tag LeetCode lists for the problem (e.g. `array`,
+`dynamic-programming`). No tags → `uncategorized`.
 
 ...and committed/pushed automatically. You never run `git push` yourself.
 

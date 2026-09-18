@@ -1,11 +1,21 @@
 """
 Pulls your recently ACCEPTED LeetCode submissions and writes:
-  quest/<slug>/README.md   -> problem statement, difficulty, link
-  sol/<slug>/solution.<ext> -> your accepted code
+  <topic>/<slug>/question.md   -> problem statement, difficulty, link
+  <topic>/<slug>/solution.md   -> EMPTY template for you to fill in by hand
+                                   (LeetCode's API has no written approach/
+                                   explanation, only the statement + your code,
+                                   so this file is intentionally blank)
+  <topic>/<slug>/code.<ext>    -> your accepted code
+
+<topic> is the first tag LeetCode lists for the problem (e.g. "array",
+"dynamic-programming"). If a problem has no tags, it goes under "uncategorized".
 
 State is tracked in data/synced.json so we never rewrite/duplicate a submission
 we've already synced (unless you accept a *new* submission id for the same
-problem, in which case we overwrite with the newer one).
+problem, in which case we overwrite with the newer one). Note: if you've
+already hand-written something into solution.md, a re-sync of the same
+problem (new accepted submission) will NOT touch solution.md or overwrite it —
+only question.md and code.<ext> get refreshed.
 
 Auth note: leetcode.com/api/submissions/ is not officially public API, it's
 the same endpoint your browser calls when you open "Submissions" on your
@@ -15,6 +25,7 @@ the session expires, you'll need to grab a fresh cookie (see SETUP.md).
 """
 
 import os
+import re
 import sys
 import json
 import time
@@ -27,8 +38,7 @@ USERNAME = os.environ.get("LEETCODE_USERNAME", "")
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 STATE_FILE = ROOT / "data" / "synced.json"
-QUEST_DIR = ROOT / "quest"
-SOL_DIR = ROOT / "sol"
+PROBLEMS_DIR = ROOT  # each problem gets its own top-level folder, e.g. two-sum/
 
 HEADERS = {
     "Cookie": f"LEETCODE_SESSION={LEETCODE_SESSION}; csrftoken={CSRF_TOKEN};",
@@ -73,6 +83,7 @@ def fetch_question_content(slug):
         title
         difficulty
         content
+        topicTags { name }
       }
     }
     """
@@ -86,6 +97,19 @@ def fetch_question_content(slug):
     return r.json()["data"]["question"]
 
 
+def slugify(name: str) -> str:
+    name = name.lower().strip()
+    name = re.sub(r"[^a-z0-9]+", "-", name).strip("-")
+    return name or "uncategorized"
+
+
+def primary_topic(question) -> str:
+    tags = question.get("topicTags") or []
+    if not tags:
+        return "uncategorized"
+    return slugify(tags[0]["name"])
+
+
 def write_problem(slug, submission, state):
     sub_id = str(submission["id"])
     if state.get(slug) == sub_id:
@@ -93,11 +117,10 @@ def write_problem(slug, submission, state):
 
     q = fetch_question_content(slug)
     ext = LANG_EXT.get(submission["lang"], submission["lang"])
+    topic = primary_topic(q)
 
-    quest_path = QUEST_DIR / slug
-    sol_path = SOL_DIR / slug
-    quest_path.mkdir(parents=True, exist_ok=True)
-    sol_path.mkdir(parents=True, exist_ok=True)
+    problem_path = PROBLEMS_DIR / topic / slug
+    problem_path.mkdir(parents=True, exist_ok=True)
 
     readme = (
         f"# {q['questionFrontendId']}. {q['title']}\n\n"
@@ -106,8 +129,16 @@ def write_problem(slug, submission, state):
         f"---\n\n"
         f"{q['content']}\n"
     )
-    (quest_path / "README.md").write_text(readme, encoding="utf-8")
-    (sol_path / f"solution.{ext}").write_text(submission["code"], encoding="utf-8")
+    (problem_path / "question.md").write_text(readme, encoding="utf-8")
+    (problem_path / f"code.{ext}").write_text(submission["code"], encoding="utf-8")
+
+    solution_md = problem_path / "solution.md"
+    if not solution_md.exists():
+        solution_md.write_text(
+            f"# Approach: {q['title']}\n\n"
+            f"<!-- write your approach / notes here -->\n",
+            encoding="utf-8",
+        )
 
     state[slug] = sub_id
     print(f"synced: {slug} (submission {sub_id})")
